@@ -13,12 +13,23 @@ public:
             throw std::invalid_argument("M must be less N for negative value of s");
     }
 
-    std::optional<int64_t> operator[](int64_t i) const
+    std::optional<int64_t> operator[](uint64_t i) const
     {
-        if (i < 0) return std::nullopt;
-        if (step < 0 && first + step * i < last) return std::nullopt;
-        if (step > 0 && first + step * i > last) return std::nullopt;
+        if (step < 0 && (int64_t(first + step * i) < last
+                         || int64_t(first + step * i) > first))
+            return std::nullopt;
+        if (step > 0 && (int64_t(first + step * i) > last
+                         || int64_t(first + step * i) < first))
+            return std::nullopt;
         return first + step * i;
+    }
+
+    uint64_t GetSize() const
+    {
+        if (step > 0)
+            return uint64_t(last - first) / uint64_t(step) + 1;
+        else
+            return uint64_t(first - last) / uint64_t(-step) + 1;
     }
 };
 
@@ -65,6 +76,26 @@ TEST(TRangeTests, OperatorIndex) {
     EXPECT_EQ(range_4[-1], std::nullopt);
     EXPECT_EQ(range_4[0], 1);
     EXPECT_EQ(range_4[1], std::nullopt);
+}
+
+TEST(TRangeTests, GetSize) {
+    TRange range_0(0, 10, 2);
+    EXPECT_EQ(range_0.GetSize(), 6);
+
+    TRange range_1(-6, -12, -3);
+    EXPECT_EQ(range_1.GetSize(), 3);
+
+    TRange range_2(0, 10, 3);
+    EXPECT_EQ(range_2.GetSize(), 4);
+
+    TRange range_3(1, -10, -5);
+    EXPECT_EQ(range_3.GetSize(), 3);
+
+    TRange range_4(1, -10, -20);
+    EXPECT_EQ(range_4.GetSize(), 1);
+
+    TRange range_5(1, 10, 20);
+    EXPECT_EQ(range_5.GetSize(), 1);
 }
 
 int main(int argc, char *argv[])
