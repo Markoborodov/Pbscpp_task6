@@ -2,6 +2,7 @@
 
 class TRange {
     int64_t first, last, step;
+
 public:
     TRange(int64_t N, int64_t M, int64_t s): first(N), last(M), step(s)
     {
@@ -31,6 +32,73 @@ public:
         else
             return uint64_t(first - last) / uint64_t(-step) + 1;
     }
+
+    class const_iterator {
+        const TRange* range;
+        uint64_t current_index;
+        uint64_t size;
+        explicit const_iterator(const TRange* _range, uint64_t i = 0, bool _is_end = false)
+            :range(_range), current_index(i)
+            {
+                size = _range->GetSize();
+            }
+
+    public:
+        typedef std::forward_iterator_tag iterator_category;
+        typedef int64_t value_type;
+        typedef uint64_t difference_type;
+        typedef int64_t* pointer;
+        typedef int64_t& reference;
+
+        const_iterator(): range(nullptr), current_index(0), size(0) {}
+
+        const_iterator(const const_iterator& it)
+        {
+            range = it.range;
+            current_index = it.current_index;
+            size = it.size;
+        }
+
+        const_iterator& operator=(const const_iterator& it)
+        {
+            if (*this == it) return *this;
+            range = it.range;
+            current_index = it.current_index;
+            size = it.size;
+            return *this;
+        }
+
+        bool operator==(const const_iterator& rhs) const
+        {
+            return range == rhs.range
+                   && current_index == rhs.current_index
+                   && size == rhs.size;
+        }
+
+        bool operator!=(const const_iterator& rhs) const
+        {
+            return !(rhs == *this);
+        }
+
+        std::optional<int64_t> operator*() const
+        {
+            if (size == current_index) return std::nullopt;
+            return (*range)[current_index];
+        }
+
+        friend const const_iterator& operator++(const_iterator& it)
+        {
+            if (it.current_index != it.size) it.current_index++;
+            return it;
+        }
+
+        friend const const_iterator operator++(const_iterator& it, int)
+        {
+            const_iterator tmp(it);
+            if (it.current_index != it.size) it.current_index++;
+            return tmp;
+        }
+    };
 };
 
 TEST(TRangeTests, Constructor) {
@@ -96,6 +164,24 @@ TEST(TRangeTests, GetSize) {
 
     TRange range_5(1, 10, 20);
     EXPECT_EQ(range_5.GetSize(), 1);
+}
+
+TEST(TRangeConstIteratorTests, Constructor) {
+    TRange range_0(0, 10, 2);
+    TRange range_1(0, 5, 2);
+
+    TRange::const_iterator it_0;
+    EXPECT_EQ(TRange::const_iterator(), it_0);
+    TRange::const_iterator it_1(it_0);
+    EXPECT_EQ(it_0, it_1);
+    TRange::const_iterator it_2 = it_0;
+    EXPECT_TRUE(it_0 == it_2);
+    EXPECT_FALSE(it_0 != it_2);
+
+    EXPECT_EQ(*it_0, std::nullopt);
+    EXPECT_EQ(*++it_0, std::nullopt);
+    it_0++;
+    EXPECT_EQ(*it_0, std::nullopt);
 }
 
 int main(int argc, char *argv[])
