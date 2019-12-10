@@ -1,5 +1,6 @@
 #include <gtest/gtest.h>
 #include <limits>
+#include <unordered_set>
 
 class TRange {
     int64_t first, last, step;
@@ -37,15 +38,15 @@ public:
         const TRange* range;
         uint64_t current_index;
         uint64_t size;
-        explicit const_iterator(const TRange* _range, uint64_t i = 0, bool _is_end = false)
-            :range(_range), current_index(i)
-            {
-                if (nullptr == _range)
-                    throw std::invalid_argument("_range is null pointer");
-                size = _range->GetSize();
-                if (current_index > size)
-                    current_index = size;
-            }
+
+        explicit
+        const_iterator(const TRange* _range, uint64_t i = 0)
+        :range(_range), current_index(i)
+        {
+            size = _range->GetSize();
+            if (current_index > size)
+                current_index = size;
+        }
 
     public:
         typedef std::forward_iterator_tag iterator_category;
@@ -106,7 +107,43 @@ public:
             it.current_index++;
             return tmp;
         }
+
+        friend class TRange;
     };
+
+    const_iterator begin() const
+    {
+        return const_iterator(this);
+    }
+
+    const_iterator end() const
+    {
+        return const_iterator(this, size);
+    }
+
+    bool operator==(const TRange& rhs) const
+    {
+        return first == rhs.first
+               && last == rhs.last
+               && step == rhs.step;
+    }
+
+    friend class std::hash<TRange>;
+};
+
+template <>
+class std::hash<TRange> {
+public:
+    size_t operator()(const TRange& range) const
+    {
+        size_t result = 2166136261;
+
+        result = (result * 16777619) ^ static_cast<size_t>(range.first);
+        result = (result * 16777619) ^ static_cast<size_t>(range.last);
+        result = (result * 16777619) ^ static_cast<size_t>(range.step);
+
+        return result;
+    }
 };
 
 TEST(TRangeTests, Constructor) {
@@ -189,22 +226,54 @@ TEST(TRangeTests, WorstCase) {
     EXPECT_EQ(range.GetSize(), std::numeric_limits<uint64_t>::max());
 }
 
-TEST(TRangeConstIteratorTests, DISABLED_Constructor) {
+TEST(TRangeConstIteratorTests, Constructor) {
     TRange range_0(0, 10, 2);
     TRange range_1(0, 5, 2);
 
     TRange::const_iterator it_0;
     EXPECT_EQ(TRange::const_iterator(), it_0);
+
     TRange::const_iterator it_1(it_0);
     EXPECT_EQ(it_0, it_1);
+
     TRange::const_iterator it_2 = it_0;
     EXPECT_TRUE(it_0 == it_2);
     EXPECT_FALSE(it_0 != it_2);
 
     EXPECT_EQ(*it_0, std::nullopt);
-    EXPECT_EQ(*++it_0, std::nullopt);
-    it_0++;
-    EXPECT_EQ(*it_0, std::nullopt);
+
+    EXPECT_THROW(++it_0, std::overflow_error);
+    EXPECT_THROW(it_0++, std::overflow_error);
+}
+
+TEST(TRangeTests, Iterator) {
+    TRange range_0(0, 10, 3);
+    TRange range_1(1, -10, -3);
+
+    int64_t array_0[] = {0, 3, 6, 9};
+    int64_t array_1[] = {1, -2, -5, -8};
+
+    int i = 0;
+    for (auto it = range_0.begin(); it != range_0.end(); it++) {
+        EXPECT_EQ(*it, array_0[i]) << "i = " << i;
+        i++;
+    }
+
+    i = 0;
+    for (auto&& it : range_1) {
+        EXPECT_EQ(it, array_1[i]) << "i = " << i;
+        i++;
+    }
+}
+
+TEST(TRangeTests, UnorderedSet) {
+    std::unordered_set<TRange> set;
+
+    TRange range_0(0, 10, 3);
+    TRange range_1(1, -10, -3);
+
+    set.insert(range_0);
+    set.insert(range_1);
 }
 
 int main(int argc, char *argv[])
