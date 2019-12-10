@@ -1,36 +1,36 @@
 #include <gtest/gtest.h>
+#include <limits>
 
 class TRange {
     int64_t first, last, step;
-
+    uint64_t size;
 public:
     TRange(int64_t N, int64_t M, int64_t s): first(N), last(M), step(s)
     {
         if (0 == s)
-            throw std::invalid_argument("zero value of s aka step");
+            throw std::invalid_argument("Zero value of s");
         if (s > 0 && M <= N)
             throw std::invalid_argument("M must be greater N for positive value of s");
         if (s < 0 && M >= N)
             throw std::invalid_argument("M must be less N for negative value of s");
+
+        if (s > 0)
+            size = static_cast<uint64_t>(last - first) / static_cast<uint64_t>(step) + 1;
+        else
+            size = static_cast<uint64_t>(first - last) / static_cast<uint64_t>(-step) + 1;
+
+        if (0 == size) throw std::invalid_argument("Range too large");
     }
 
     std::optional<int64_t> operator[](uint64_t i) const
     {
-        if (step < 0 && (int64_t(first + step * i) < last
-                         || int64_t(first + step * i) > first))
-            return std::nullopt;
-        if (step > 0 && (int64_t(first + step * i) > last
-                         || int64_t(first + step * i) < first))
-            return std::nullopt;
-        return first + step * i;
+        if (i >= size) return std::nullopt;
+        return first + static_cast<int64_t>(step * i);
     }
 
     uint64_t GetSize() const
     {
-        if (step > 0)
-            return uint64_t(last - first) / uint64_t(step) + 1;
-        else
-            return uint64_t(first - last) / uint64_t(-step) + 1;
+        return size;
     }
 
     class const_iterator {
@@ -40,7 +40,11 @@ public:
         explicit const_iterator(const TRange* _range, uint64_t i = 0, bool _is_end = false)
             :range(_range), current_index(i)
             {
+                if (nullptr == _range)
+                    throw std::invalid_argument("_range is null pointer");
                 size = _range->GetSize();
+                if (current_index > size)
+                    current_index = size;
             }
 
     public:
@@ -61,7 +65,7 @@ public:
 
         const_iterator& operator=(const const_iterator& it)
         {
-            if (*this == it) return *this;
+            if (this == &it) return *this;
             range = it.range;
             current_index = it.current_index;
             size = it.size;
@@ -88,14 +92,18 @@ public:
 
         friend const const_iterator& operator++(const_iterator& it)
         {
-            if (it.current_index != it.size) it.current_index++;
+            if (it.current_index == it.size)
+                throw std::overflow_error("Incrementing iterator of end");
+            it.current_index++;
             return it;
         }
 
         friend const const_iterator operator++(const_iterator& it, int)
         {
             const_iterator tmp(it);
-            if (it.current_index != it.size) it.current_index++;
+            if (it.current_index == it.size)
+                throw std::overflow_error("Incrementing iterator of end");
+            it.current_index++;
             return tmp;
         }
     };
@@ -104,7 +112,10 @@ public:
 TEST(TRangeTests, Constructor) {
     EXPECT_NO_THROW(TRange(0, 10, 1));
     EXPECT_NO_THROW(TRange(1, -10, -1));
+
     EXPECT_THROW(TRange(1, -10, 0), std::invalid_argument);
+    EXPECT_THROW(TRange(10, 0, 1), std::invalid_argument);
+    EXPECT_THROW(TRange(-10, 1, -1), std::invalid_argument);
 }
 
 TEST(TRangeTests, OperatorIndex) {
@@ -166,7 +177,19 @@ TEST(TRangeTests, GetSize) {
     EXPECT_EQ(range_5.GetSize(), 1);
 }
 
-TEST(TRangeConstIteratorTests, Constructor) {
+TEST(TRangeTests, WorstCase) {
+    EXPECT_THROW(TRange(std::numeric_limits<int64_t>::min(),
+            std::numeric_limits<int64_t>::max(), 1), std::invalid_argument);
+    TRange range(std::numeric_limits<int64_t>::min() + 1,
+            std::numeric_limits<int64_t>::max(), 1);
+
+    EXPECT_EQ(range[0], std::numeric_limits<int64_t>::min() + 1);
+    EXPECT_EQ(range[std::numeric_limits<int64_t>::max()], 0);
+
+    EXPECT_EQ(range.GetSize(), std::numeric_limits<uint64_t>::max());
+}
+
+TEST(TRangeConstIteratorTests, DISABLED_Constructor) {
     TRange range_0(0, 10, 2);
     TRange range_1(0, 5, 2);
 
